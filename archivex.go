@@ -94,6 +94,7 @@ func (z *ZipFile) AddFile(name string) error {
 
 // AddAll add all files from dir in archive
 func (z *ZipFile) AddAll(dir string, includeCurrentFolder bool) error {
+    if includeCurrentFolder { if err := z.addDir(getSubDir(dir, dir, includeCurrentFolder)); err != nil { return err } }
 	return z.addAll(dir, dir, includeCurrentFolder)
 }
 
@@ -106,10 +107,11 @@ func (z *ZipFile) addAll(dir string, rootDir string, includeCurrentFolder bool) 
 
 	var names []string
 	var bdatas [][]byte
-
+    
 	for _, arq := range listFile {
 		if isDir(dir + arq.Name()) {
-			z.addAll(dir + arq.Name() + "/", rootDir, includeCurrentFolder)
+		    if err = z.addDir(getSubDir(dir + arq.Name(), rootDir, includeCurrentFolder)+"/"); err != nil { return err }
+			z.addAll(dir + arq.Name() + string(os.PathSeparator), rootDir, includeCurrentFolder)
 		} else {
 			bytearq, err := ioutil.ReadFile(dir + arq.Name())
 			if err != nil {
@@ -132,6 +134,11 @@ func (z *ZipFile) addAll(dir string, rootDir string, includeCurrentFolder bool) 
 		}
 	}
 	return nil
+}
+
+func (z *ZipFile) addDir(name string) error {
+    _, err := z.Writer.Create(name)
+    return err
 }
 
 func (z *ZipFile) Close() error {
@@ -191,6 +198,9 @@ func (t *TarFile) AddFile(name string) error {
 
 // AddAll add all files from dir in archive
 func (t *TarFile) AddAll(dir string, includeCurrentFolder bool) error {
+    if includeCurrentFolder {
+        if err := t.addDir(getSubDir(dir, dir, includeCurrentFolder)); err != nil { return err }
+    }
 	return t.addAll(dir, dir, includeCurrentFolder)
 }
 
@@ -201,13 +211,14 @@ func (t *TarFile) addAll(dir string, rootDir string, includeCurrentFolder bool) 
 	if err != nil {
 		return err
 	}
-
+    
 	var names []string
 	var bdatas [][]byte
 
 	for _, arq := range listFile {
 		if isDir(dir + arq.Name()) {
-			t.addAll(dir + arq.Name() + "/", rootDir, includeCurrentFolder)
+		    if err = t.addDir(getSubDir(dir + arq.Name(), dir, includeCurrentFolder)+"/"); err != nil { return  err }
+			t.addAll(dir + arq.Name() + string(os.PathSeparator), rootDir, includeCurrentFolder)
 		} else {
 			bytearq, err := ioutil.ReadFile(dir + arq.Name())
 			if err != nil {
@@ -232,6 +243,12 @@ func (t *TarFile) addAll(dir string, rootDir string, includeCurrentFolder bool) 
 	return nil
 }
 
+func (t *TarFile) addDir(name string) error {
+    h := &tar.Header{Name: name, Size: 0, Typeflag: '5'}
+    err := t.Writer.WriteHeader( h )
+    return err
+}
+
 // Close the file Tar
 func (t *TarFile) Close() error {
 	err := t.Writer.Close()
@@ -239,12 +256,12 @@ func (t *TarFile) Close() error {
 }
 
 func getSubDir(dir string, rootDir string, includeCurrentFolder bool) string {
-	subDir := strings.Replace(dir, rootDir, "", 1)
+    subDir := strings.Replace(dir, rootDir, "", 1)
             
-    	if includeCurrentFolder {
-        	rootDirParts := strings.Split(rootDir, string(os.PathSeparator))
-        	subDir = rootDirParts[len(rootDirParts)-2] + string(os.PathSeparator) + subDir
-    	}
+    if includeCurrentFolder {
+        rootDirParts := strings.Split(rootDir, string(os.PathSeparator))
+        subDir = rootDirParts[len(rootDirParts)-2] + string(os.PathSeparator) + subDir
+    }
             
-    	return subDir
+    return subDir
 }
